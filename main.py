@@ -190,21 +190,20 @@ def update_record(table_name, primary_key_column, primary_key_value, column, new
     cursor.close()
 
 
-def delete_record(table_name, primary_key_column, primary_key_value):
-    cursor = cnx.cursor()
+def delete_record(table_name, primary_key_column, primary_key_value, tree):
     query = f"DELETE FROM {table_name} WHERE {primary_key_column} = %s"
-    cursor.execute(query, (primary_key_value,))
-    cnx.commit()
-    cursor.close()
-
-
-def search_records(table_name, column, value):
-    cursor = cnx.cursor()
-    query = f"SELECT * FROM {table_name} WHERE {column} LIKE %s"
-    cursor.execute(query, (f"%{value}%",))
-    rows = cursor.fetchall()
-    cursor.close()
-    return rows
+    try:
+        cursor = cnx.cursor()
+        cursor.execute(query, (primary_key_value,))
+        cnx.commit()
+        refresh_tree(tree, table_name)
+    except mysql.connector.errors.IntegrityError as e:
+        if e.errno == 1451:
+            messagebox.showerror("Error", "Cannot delete this record because it has related records in another table. Please delete related records first.")
+        else:
+            messagebox.showerror("Error", f"An error occurred while deleting the record: {e}")
+    except Exception as e:
+        messagebox.showerror("Error", f"An error occurred while deleting the record: {e}")
 
 
 def show_add_dialog(table_name, columns, tree):
@@ -227,12 +226,9 @@ def show_add_dialog(table_name, columns, tree):
     submit_button.grid(row=len(columns), columnspan=2, pady=10)
 
 
-def refresh_tree(tree, table_name, column=None, search_query=None):
+def refresh_tree(tree, table_name):
     tree.delete(*tree.get_children())
-    if column and search_query:
-        records = search_records(table_name, column, search_query)
-    else:
-        records = get_all_records(table_name)
+    records = get_all_records(table_name)
     for row in records:
         tree.insert("", tk.END, values=row)
 
@@ -243,25 +239,12 @@ def add_buttons(tab, tree, table_name, columns, primary_key_column):
     add_button.pack(side=tk.LEFT, padx=10, pady=10)
 
     delete_button = ttk.Button(tab, text="Delete",
-                               command=lambda: delete_record(table_name, primary_key_column, tree.selection()[0]))
+                               command=lambda: delete_record(table_name, primary_key_column, tree.item(tree.selection()[0])['values'][0], tree))
     delete_button.pack(side=tk.LEFT, padx=10)
 
     modify_button = ttk.Button(tab, text="Modify",
                                command=lambda: show_modify_dialog(tab, table_name, primary_key_column, tree))
     modify_button.pack(side=tk.LEFT, padx=10)
-
-    search_label = ttk.Label(tab, text="Search:")
-    search_label.pack(side=tk.LEFT, padx=10)
-
-    search_entry = ttk.Entry(tab)
-    search_entry.pack(side=tk.LEFT, padx=10)
-
-    search_button = ttk.Button(tab, text="Search",
-                               command=lambda: refresh_tree(tree, table_name, columns[1], search_entry.get()))
-    search_button.pack(side=tk.LEFT, padx=10)
-
-    clear_search_button = ttk.Button(tab, text="Clear", command=lambda: refresh_tree(tree, table_name))
-    clear_search_button.pack(side=tk.LEFT, padx=10)
 
 
 def show_modify_dialog(parent, table_name, tree, fields, id_field):
