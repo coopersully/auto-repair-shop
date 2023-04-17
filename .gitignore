@@ -1,0 +1,11 @@
+# JetBrains related
+.idea/
+
+# Python related
+__pycache__/
+
+# OS Specific
+*.DS_Store
+
+# Privacy relateed
+.env
