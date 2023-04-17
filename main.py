@@ -182,12 +182,13 @@ def add_record(table_name, columns, values):
     cursor.close()
 
 
-def update_record(table_name, primary_key_column, primary_key_value, column, new_value):
+def update_record(table_name, id_field, record_id, update_fields):
+    set_clause = ', '.join([f"{field} = %s" for field in update_fields])
+    query = f"UPDATE {table_name} SET {set_clause} WHERE {id_field} = %s"
+
     cursor = cnx.cursor()
-    query = f"UPDATE {table_name} SET {column} = %s WHERE {primary_key_column} = %s"
-    cursor.execute(query, (new_value, primary_key_value))
+    cursor.execute(query, list(update_fields.values()) + [record_id])
     cnx.commit()
-    cursor.close()
 
 
 def delete_record(table_name, primary_key_column, primary_key_value, tree):
@@ -243,17 +244,22 @@ def add_buttons(tab, tree, table_name, columns, primary_key_column):
     delete_button.pack(side=tk.LEFT, padx=10)
 
     modify_button = ttk.Button(tab, text="Modify",
-                               command=lambda: show_modify_dialog(tab, table_name, primary_key_column, tree))
+                               command=lambda: show_modify_dialog(tab, table_name, primary_key_column, tree.item(tree.selection()[0])['values'][0], tree))
     modify_button.pack(side=tk.LEFT, padx=10)
 
 
-def show_modify_dialog(parent, table_name, tree, fields, id_field):
+def show_modify_dialog(parent, table_name, primary_key_column, id_field, tree):
     selected_item = tree.selection()[0]
     selected_data = tree.item(selected_item)["values"]
     record_id = selected_data[0]
 
     top = tk.Toplevel(parent)
     top.title(f"Modify {table_name.capitalize()} Record")
+
+    cursor = cnx.cursor()
+    cursor.execute(f"DESCRIBE {table_name}")
+    column_data = cursor.fetchall()
+    fields = [column[0] for column in column_data if column[0] != primary_key_column]
 
     labels = []
     entries = []
