@@ -1,4 +1,5 @@
 import mysql.connector
+import sqlparse
 from dotenv import load_dotenv
 from mysql.connector import errorcode
 import tkinter as tk
@@ -55,7 +56,11 @@ def connect_db():
             cnx.database = DATABASE
         except mysql.connector.Error as err:
             if err.errno == errorcode.ER_BAD_DB_ERROR:
-                return None
+                if create_database(cnx):  # Create the database if it doesn't exist
+                    cnx.close()
+                    cnx = connect_db()  # Reconnect to the newly created database
+                else:
+                    return None
             else:
                 messagebox.showerror("Error", str(err))
                 return None
@@ -69,7 +74,7 @@ def create_tables(cnx, schema, created_db):
         return True
 
     cursor = cnx.cursor()
-    for statement in schema.split(";"):
+    for statement in sqlparse.split(schema):
         if statement.strip():
             try:
                 cursor.execute(statement)
