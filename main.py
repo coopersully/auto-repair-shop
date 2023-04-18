@@ -9,7 +9,7 @@ import os
 load_dotenv()
 
 # Load environment variables
-USER = os.environ.get("USERNAME")
+USERNAME = os.environ.get("USERNAME")
 PASSWORD = os.environ.get("PASSWORD")
 HOST = os.environ.get("HOST")
 DATABASE = os.environ.get("DATABASE")
@@ -24,7 +24,7 @@ with open("schema.sql", "r") as f:
 def connect_server():
     try:
         cnx = mysql.connector.connect(
-            user=USER, password=PASSWORD, host=HOST
+            user=USERNAME, password=PASSWORD, host=HOST
         )
         return cnx
     except mysql.connector.Error as err:
