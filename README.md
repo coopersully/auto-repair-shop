@@ -6,7 +6,7 @@ This project is a simple desktop application to manage an auto repair shop's dat
 
 The application requires the following environment variables:
 
-- `USERNAME`: MySQL username
+- `DB_USER`: MySQL username
 - `PASSWORD`: MySQL password
 - `HOST`: MySQL server host (e.g., localhost or an IP address)
 - `DATABASE`: The name of the MySQL database to be used

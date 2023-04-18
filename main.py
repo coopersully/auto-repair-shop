@@ -9,7 +9,7 @@ import os
 load_dotenv()
 
 # Load environment variables
-USERNAME = os.environ.get("USERNAME")
+USERNAME = os.environ.get("DB_USER")
 PASSWORD = os.environ.get("PASSWORD")
 HOST = os.environ.get("HOST")
 DATABASE = os.environ.get("DATABASE")
@@ -23,6 +23,7 @@ with open("schema.sql", "r") as f:
 # Establish a connection to the server
 def connect_server():
     try:
+        print(f'Logging in as {USERNAME} with {PASSWORD}...')
         cnx = mysql.connector.connect(
             user=USERNAME, password=PASSWORD, host=HOST
         )
