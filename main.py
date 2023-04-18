@@ -40,7 +40,8 @@ def connect_server():
 def create_database(cnx):
     cursor = cnx.cursor()
     try:
-        cursor.execute(f"CREATE DATABASE {DATABASE}")
+        cursor.execute(f"CREATE DATABASE IF NOT EXISTS {DATABASE}")
+        cnx.commit()
     except mysql.connector.Error as err:
         messagebox.showerror("Error", f"Failed to create database: {err}")
         return False
@@ -72,6 +73,17 @@ def connect_db():
 # Create tables if they don't exist
 def create_tables(cnx, schema, created_db):
     if not created_db:
+        return True
+
+    def check_table_exists(table_name):
+        cursor = cnx.cursor()
+        cursor.execute("SHOW TABLES")
+        tables = [row[0] for row in cursor.fetchall()]
+        cursor.close()
+        return table_name in tables
+
+    required_tables = ['owner', 'car', 'employee', 'repair', 'service']
+    if all(check_table_exists(table) for table in required_tables):
         return True
 
     cursor = cnx.cursor()
@@ -206,7 +218,8 @@ def delete_record(table_name, primary_key_column, primary_key_value, tree):
         refresh_tree(tree, table_name)
     except mysql.connector.errors.IntegrityError as e:
         if e.errno == 1451:
-            messagebox.showerror("Error", "Cannot delete this record because it has related records in another table. Please delete related records first.")
+            messagebox.showerror("Error",
+                                 "Cannot delete this record because it has related records in another table. Please delete related records first.")
         else:
             messagebox.showerror("Error", f"An error occurred while deleting the record: {e}")
     except Exception as e:
@@ -246,11 +259,13 @@ def add_buttons(tab, tree, table_name, columns, primary_key_column):
     add_button.pack(side=tk.LEFT, padx=10, pady=10)
 
     delete_button = ttk.Button(tab, text="Delete",
-                               command=lambda: delete_record(table_name, primary_key_column, tree.item(tree.selection()[0])['values'][0], tree))
+                               command=lambda: delete_record(table_name, primary_key_column,
+                                                             tree.item(tree.selection()[0])['values'][0], tree))
     delete_button.pack(side=tk.LEFT, padx=10)
 
     modify_button = ttk.Button(tab, text="Modify",
-                               command=lambda: show_modify_dialog(tab, table_name, primary_key_column, tree.item(tree.selection()[0])['values'][0], tree))
+                               command=lambda: show_modify_dialog(tab, table_name, primary_key_column,
+                                                                  tree.item(tree.selection()[0])['values'][0], tree))
     modify_button.pack(side=tk.LEFT, padx=10)
 
 
@@ -305,10 +320,8 @@ def check_database_exists(cnx, database_name):
 if __name__ == "__main__":
     # Connect to the database and create tables
     cnx = connect_db()
-    created_db = False
     if cnx:
-        if not check_database_exists(cnx, DATABASE):
-            created_db = create_database(cnx)
-        if create_tables(cnx, schema, created_db):
+        created_db = create_database(cnx)
+        if created_db and create_tables(cnx, schema, created_db):
             main_window()
         cnx.close()
