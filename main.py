@@ -36,18 +36,6 @@ def connect_server():
         return None
 
 
-# Create the database if it doesn't exist
-def create_database(cnx):
-    cursor = cnx.cursor()
-    try:
-        cursor.execute(f"CREATE DATABASE {DATABASE}")
-        cnx.commit()
-    except mysql.connector.Error:
-        return False
-    cursor.close()
-    return True
-
-
 # Establish a connection to the database
 def connect_db():
     cnx = connect_server()
@@ -57,30 +45,12 @@ def connect_db():
             cnx.database = DATABASE
         except mysql.connector.Error as err:
             if err.errno == errorcode.ER_BAD_DB_ERROR:
-                if create_database(cnx):  # Create the database if it doesn't exist
-                    cnx.close()
-                    cnx = connect_db()  # Reconnect to the newly created database
-                else:
-                    return None
+                return None
             else:
                 messagebox.showerror("Error", str(err))
                 return None
         cursor.close()
     return cnx
-
-
-# Create tables if they don't exist
-def create_tables(cnx, schema):
-    cursor = cnx.cursor()
-    for statement in sqlparse.split(schema):
-        if statement.strip():
-            try:
-                cursor.execute(statement)
-            except mysql.connector.Error as err:
-                messagebox.showerror("Error", f"Failed to create tables: {err}")
-                return False
-    cursor.close()
-    return True
 
 
 def get_all_records(table_name):
@@ -293,25 +263,8 @@ def show_modify_dialog(parent, table_name, primary_key_column, id_field, tree):
     top.mainloop()
 
 
-def check_database_exists(cnx, database_name):
-    cursor = cnx.cursor()
-    cursor.execute("SHOW DATABASES")
-    databases = [row[0] for row in cursor.fetchall()]
-    cursor.close()
-
-    return database_name in databases
-
-
 if __name__ == "__main__":
-    # Connect to the database and create tables
     cnx = connect_db()
     if cnx:
-        # Create the database if it doesn't exist
-        created_db = create_database(cnx)
-
-        # Initialize the required tables
-        if created_db:
-            create_tables(cnx, schema)
-
         main_window()
         cnx.close()
