@@ -154,9 +154,9 @@ def add_record(table_name, columns, values):
 
 
 # Take fields from the modify pop-up dialog and update the given entry
-def update_record(table_name, id_field, record_id, update_fields):
+def update_record(table_name, primary_key_column, record_id, update_fields):
     set_clause = ', '.join([f"{field} = %s" for field in update_fields])
-    query = f"UPDATE {table_name} SET {set_clause} WHERE {id_field} = %s"
+    query = f"UPDATE {table_name} SET {set_clause} WHERE {primary_key_column} = %s"
 
     curr = conn.cursor()
     curr.execute(query, list(update_fields.values()) + [record_id])
@@ -256,7 +256,7 @@ def show_modify_dialog(parent, table_name, primary_key_column, id_field, tree):
 
     def modify_record():
         update_fields = {field: entry.get() for field, entry in zip(fields, entries)}
-        update_record(table_name, id_field, record_id, update_fields)
+        update_record(table_name, primary_key_column, record_id, update_fields)
         refresh_tree(tree, table_name)
         top.destroy()
 
