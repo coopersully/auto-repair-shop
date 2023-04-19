@@ -40,10 +40,9 @@ def connect_server():
 def create_database(cnx):
     cursor = cnx.cursor()
     try:
-        cursor.execute(f"CREATE DATABASE IF NOT EXISTS {DATABASE}")
+        cursor.execute(f"CREATE DATABASE {DATABASE}")
         cnx.commit()
-    except mysql.connector.Error as err:
-        messagebox.showerror("Error", f"Failed to create database: {err}")
+    except mysql.connector.Error:
         return False
     cursor.close()
     return True
@@ -71,21 +70,7 @@ def connect_db():
 
 
 # Create tables if they don't exist
-def create_tables(cnx, schema, created_db):
-    if not created_db:
-        return True
-
-    def check_table_exists(table_name):
-        cursor = cnx.cursor()
-        cursor.execute("SHOW TABLES")
-        tables = [row[0] for row in cursor.fetchall()]
-        cursor.close()
-        return table_name in tables
-
-    required_tables = ['owner', 'car', 'employee', 'repair', 'service']
-    if all(check_table_exists(table) for table in required_tables):
-        return True
-
+def create_tables(cnx, schema):
     cursor = cnx.cursor()
     for statement in sqlparse.split(schema):
         if statement.strip():
@@ -321,7 +306,12 @@ if __name__ == "__main__":
     # Connect to the database and create tables
     cnx = connect_db()
     if cnx:
+        # Create the database if it doesn't exist
         created_db = create_database(cnx)
-        if created_db and create_tables(cnx, schema, created_db):
-            main_window()
+
+        # Initialize the required tables
+        if created_db:
+            create_tables(cnx, schema)
+
+        main_window()
         cnx.close()
