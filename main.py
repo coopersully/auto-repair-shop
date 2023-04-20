@@ -1,19 +1,27 @@
 import os
-import tkinter as tk
-from tkinter import messagebox, ttk
+import sys
 
+from PyQt5.QtWidgets import QWidget, QApplication, QMainWindow, QTabWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, \
+    QHBoxLayout, QPushButton
+from PyQt5 import QtGui, QtCore
+from PyQt5.QtCore import Qt
 import mysql.connector
+from PyQt5 import QtGui
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QWidget, QApplication, QMainWindow, QTabWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, \
+    QHeaderView
+from PyQt5.uic.properties import QtCore
 from dotenv import load_dotenv
 from mysql.connector import errorcode
 
 load_dotenv()
 
 # Load environment variables
-USERNAME = os.environ.get("DB_USER")
+USERNAME = os.environ.get("DB_USER", "root")
 PASSWORD = os.environ.get("PASSWORD")
-HOST = os.environ.get("HOST")
+HOST = os.environ.get("HOST", "localhost")
 DATABASE = os.environ.get("DATABASE")
-PORT = os.environ.get("PORT")
+PORT = os.environ.get("PORT", "3306")
 
 
 # Establish a connection to the MySQL server
@@ -26,9 +34,9 @@ def connect_server():
         return conn
     except mysql.connector.Error as err:
         if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-            messagebox.showerror("Error", "Access denied. Check your username and password.")
+            print("Error: Access denied. Check your username and password.")
         else:
-            messagebox.showerror("Error", str(err))
+            print(f"Error: {err}")
         return None
 
 
@@ -43,231 +51,174 @@ def connect_db():
             if err.errno == errorcode.ER_BAD_DB_ERROR:
                 return None
             else:
-                messagebox.showerror("Error", str(err))
+                print(f"Error: {err}")
                 return None
         curr.close()
     return conn
 
 
-# Get all entries in a given table
-def get_all_records(table_name):
-    curr = conn.cursor()
-    curr.execute(f"SELECT * FROM {table_name}")
-    rows = curr.fetchall()
-    curr.close()
-    return rows
+class AutoRepairDatabase(QMainWindow):
+    def __init__(self, conn, *args, **kwargs):
+        super(AutoRepairDatabase, self).__init__(*args, **kwargs)
+        self.setWindowTitle("Auto Repair Shop Database")
+        self.conn = conn
+        self.initUI()
+
+    def initUI(self):
+        tab_widget = QTabWidget()
+        tab_widget.addTab(OwnersTab(self.conn), "Owners")
+        tab_widget.addTab(CarsTab(self.conn), "Cars")
+        tab_widget.addTab(EmployeesTab(self.conn), "Employees")
+        tab_widget.addTab(ServicesTab(self.conn), "Services")
+        tab_widget.addTab(RepairsTab(self.conn), "Repairs")
+
+        vbox = QVBoxLayout()
+        vbox.addWidget(tab_widget)
+
+        central_widget = QWidget()
+        central_widget.setLayout(vbox)
+        self.setCentralWidget(central_widget)
 
 
-# Create interface main window, views, and buttons
-def main_window():
-    root = tk.Tk()
-    root.title("Auto Repair Shop Database")
+class BaseTab(QWidget):
+    def __init__(self, conn, *args, **kwargs):
+        super(BaseTab, self).__init__(*args, **kwargs)
+        self.conn = conn
+        self.initUI()
 
-    # Create a tabbed interface for each table
-    tab_control = ttk.Notebook(root)
+    def initUI(self):
+        self.table = QTableWidget()
+        self.layout = QVBoxLayout()
 
-    # Owners tab
-    owner_tab = ttk.Frame(tab_control)
-    tab_control.add(owner_tab, text="Owners")
+        self.button_layout = QHBoxLayout()
+        self.add_button = QPushButton("Add")
+        self.modify_button = QPushButton("Modify")
+        self.delete_button = QPushButton("Delete")
 
-    owner_tree = ttk.Treeview(owner_tab, columns=("owner_id", "first_name", "last_name", "phone", "email"),
-                              show="headings")
-    owner_tree.heading("owner_id", text="Owner ID")
-    owner_tree.heading("first_name", text="First Name")
-    owner_tree.heading("last_name", text="Last Name")
-    owner_tree.heading("phone", text="Phone")
-    owner_tree.heading("email", text="Email")
-    owner_tree.pack(fill=tk.BOTH, expand=True)
-    add_buttons(owner_tab, owner_tree, "owner", ["first_name", "last_name", "phone", "email"], "owner_id")
-    refresh_tree(owner_tree, "owner")
+        self.button_layout.addWidget(self.add_button)
+        self.button_layout.addWidget(self.modify_button)
+        self.button_layout.addWidget(self.delete_button)
 
-    # Cars tab
-    car_tab = ttk.Frame(tab_control)
-    tab_control.add(car_tab, text="Cars")
+        self.layout.addWidget(self.table)
+        self.layout.addLayout(self.button_layout)
+        self.setLayout(self.layout)
 
-    car_tree = ttk.Treeview(car_tab, columns=("car_id", "make", "model", "year", "owner_id"), show="headings")
-    car_tree.heading("car_id", text="Car ID")
-    car_tree.heading("make", text="Make")
-    car_tree.heading("model", text="Model")
-    car_tree.heading("year", text="Year")
-    car_tree.heading("owner_id", text="Owner ID")
-    car_tree.pack(fill=tk.BOTH, expand=True)
-    add_buttons(car_tab, car_tree, "car", ["make", "model", "year", "owner_id"], "car_id")
-    refresh_tree(car_tree, "car")
+        self.refresh_table()
 
-    # Employees tab
-    employee_tab = ttk.Frame(tab_control)
-    tab_control.add(employee_tab, text="Employees")
+    def refresh_table(self):
+        raise NotImplementedError("Must be implemented in a subclass")
 
-    employee_tree = ttk.Treeview(employee_tab, columns=("employee_id", "first_name", "last_name", "hire_date"),
-                                 show="headings")
-    employee_tree.heading("employee_id", text="Employee ID")
-    employee_tree.heading("first_name", text="First Name")
-    employee_tree.heading("last_name", text="Last Name")
-    employee_tree.heading("hire_date", text="Hire Date")
-    employee_tree.pack(fill=tk.BOTH, expand=True)
-    add_buttons(employee_tab, employee_tree, "employee", ["first_name", "last_name", "hire_date"], "employee_id")
-    refresh_tree(employee_tree, "employee")
+    def get_all_records(self, table_name):
+        curr = self.conn.cursor()
+        curr.execute(f"SELECT * FROM {table_name}")
+        rows = curr.fetchall()
+        curr.close()
+        return rows
 
-    # Services tab
-    service_tab = ttk.Frame(tab_control)
-    tab_control.add(service_tab, text="Services")
+    def set_table_data(self, data):
+        self.table.setRowCount(len(data))
+        self.table.setColumnCount(len(data[0]))
 
-    service_tree = ttk.Treeview(service_tab, columns=("service_id", "service_name", "service_description"),
-                                show="headings")
-    service_tree.heading("service_id", text="Service ID")
-    service_tree.heading("service_name", text="Service Name")
-    service_tree.heading("service_description", text="Service Description")
-    service_tree.pack(fill=tk.BOTH, expand=True)
-    add_buttons(service_tab, service_tree, "service", ["description", "cost", "car_id", "employee_id"], "service_id")
-    refresh_tree(service_tree, "service")
+        for i, row in enumerate(data):
+            for j, cell in enumerate(row):
+                item = QTableWidgetItem(str(cell))
+                item.setForeground(Qt.white)
+                self.table.setItem(i, j, item)
 
-    # Repairs tab
-    repair_tab = ttk.Frame(tab_control)
-    tab_control.add(repair_tab, text="Repairs")
+            self.table.setAlternatingRowColors(True)
+            self.table.setStyleSheet("alternate-background-color: #393939; background-color: #313131;")
 
-    repair_tree = ttk.Treeview(repair_tab, columns=("repair_id", "car_id", "service_id", "employee_id", "repair_date"),
-                               show="headings")
-    repair_tree.heading("repair_id", text="Repair ID")
-    repair_tree.heading("car_id", text="Car ID")
-    repair_tree.heading("service_id", text="Service ID")
-    repair_tree.heading("employee_id", text="Employee ID")
-    repair_tree.heading("repair_date", text="Repair Date")
-    repair_tree.pack(fill=tk.BOTH, expand=True)
+class OwnersTab(BaseTab):
+    def __init__(self, conn, *args, **kwargs):
+        super(OwnersTab, self).__init__(conn, *args, **kwargs)
 
-    refresh_tree(repair_tree, "repair")
+    def initUI(self):
+        super(OwnersTab, self).initUI()
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["Owner ID", "First Name", "Last Name", "Phone", "Email"])
 
-    tab_control.pack(fill=tk.BOTH, expand=True)
+    def refresh_table(self):
+        records = self.get_all_records("owner")
+        self.set_table_data(records)
 
-    root.mainloop()
+class CarsTab(BaseTab):
+    def __init__(self, conn, *args, **kwargs):
+        super(CarsTab, self).__init__(conn, *args, **kwargs)
 
+    def initUI(self):
+        super(CarsTab, self).initUI()
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["Car ID", "Make", "Model", "Year", "Owner ID"])
 
-# Take fields from the add pop-up dialog and create a new entry
-def add_record(table_name, columns, values):
-    curr = conn.cursor()
-    column_names = ', '.join(columns)
-    placeholders = ', '.join(['%s'] * len(values))
-    query = f"INSERT INTO {table_name} ({column_names}) VALUES ({placeholders})"
-    curr.execute(query, values)
-    conn.commit()
-    curr.close()
+    def refresh_table(self):
+        records = self.get_all_records("car")
+        self.set_table_data(records)
 
+class EmployeesTab(BaseTab):
+    def __init__(self, conn, *args, **kwargs):
+        super(EmployeesTab, self).__init__(conn, *args, **kwargs)
 
-# Take fields from the modify pop-up dialog and update the given entry
-def update_record(table_name, primary_key_column, record_id, update_fields):
-    set_clause = ', '.join([f"{field} = %s" for field in update_fields])
-    query = f"UPDATE {table_name} SET {set_clause} WHERE {primary_key_column} = %s"
+    def initUI(self):
+        super(EmployeesTab, self).initUI()
+        self.table.setColumnCount(4)
+        self.table.setHorizontalHeaderLabels(["Employee ID", "First Name", "Last Name", "Hire Date"])
 
-    curr = conn.cursor()
-    curr.execute(query, list(update_fields.values()) + [record_id])
-    conn.commit()
+    def refresh_table(self):
+        records = self.get_all_records("employee")
+        self.set_table_data(records)
 
+class ServicesTab(BaseTab):
+    def __init__(self, conn, *args, **kwargs):
+        super(ServicesTab, self).__init__(conn, *args, **kwargs)
 
-# Delete the selected entry
-def delete_record(table_name, primary_key_column, primary_key_value, tree):
-    query = f"DELETE FROM {table_name} WHERE {primary_key_column} = %s"
-    try:
-        curr = conn.cursor()
-        curr.execute(query, (primary_key_value,))
-        conn.commit()
-        refresh_tree(tree, table_name)
-    except mysql.connector.errors.IntegrityError as e:
-        if e.errno == 1451:
-            messagebox.showerror("Error",
-                                 "Cannot delete this record because it has related records in another table. Please delete related records first.")
-        else:
-            messagebox.showerror("Error", f"An error occurred while deleting the record: {e}")
-    except Exception as e:
-        messagebox.showerror("Error", f"An error occurred while deleting the record: {e}")
+    def initUI(self):
+        super(ServicesTab, self).initUI()
+        self.table.setColumnCount(3)
+        self.table.setHorizontalHeaderLabels(["Service ID", "Service Name", "Service Description"])
 
+    def refresh_table(self):
+        records = self.get_all_records("service")
+        self.set_table_data(records)
 
-# Pop-up dialog for adding a new entry
-def show_add_dialog(table_name, columns, tree):
-    def submit():
-        values = [entry.get() for entry in entries]
-        add_record(table_name, columns, values)
-        refresh_tree(tree, table_name)
-        dialog.destroy()
+class RepairsTab(BaseTab):
+    def __init__(self, conn, *args, **kwargs):
+        super(RepairsTab, self).__init__(conn, *args, **kwargs)
 
-    dialog = tk.Toplevel()
-    dialog.title(f"Add {table_name.capitalize()} Record")
-    entries = []
-    for i, column in enumerate(columns):
-        label = ttk.Label(dialog, text=column.capitalize())
-        label.grid(row=i, column=0, padx=10, pady=10)
-        entry = ttk.Entry(dialog)
-        entry.grid(row=i, column=1, padx=10, pady=10)
-        entries.append(entry)
-    submit_button = ttk.Button(dialog, text="Submit", command=submit)
-    submit_button.grid(row=len(columns), columnspan=2, pady=10)
+    def initUI(self):
+        super(RepairsTab, self).initUI()
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(
+            ["Repair ID", "Car ID", "Service ID", "Employee ID", "Repair Date"])
 
-
-# Update data in the current tree view
-def refresh_tree(tree, table_name):
-    tree.delete(*tree.get_children())
-    records = get_all_records(table_name)
-    for row in records:
-        tree.insert("", tk.END, values=row)
-
-
-# Add buttons for the CRUD operations
-def add_buttons(tab, tree, table_name, columns, primary_key_column):
-    add_button = ttk.Button(tab, text="Add", command=lambda: show_add_dialog(table_name, columns, tree))
-    add_button.pack(side=tk.LEFT, padx=10, pady=10)
-
-    delete_button = ttk.Button(tab, text="Delete",
-                               command=lambda: delete_record(table_name, primary_key_column,
-                                                             tree.item(tree.selection()[0])['values'][0], tree))
-    delete_button.pack(side=tk.LEFT, padx=10)
-
-    modify_button = ttk.Button(tab, text="Modify",
-                               command=lambda: show_modify_dialog(tab, table_name, primary_key_column,
-                                                                  tree.item(tree.selection()[0])['values'][0], tree))
-    modify_button.pack(side=tk.LEFT, padx=10)
-
-
-# Pop-up dialog for editing the selected entry
-def show_modify_dialog(parent, table_name, primary_key_column, id_field, tree):
-    selected_item = tree.selection()[0]
-    selected_data = tree.item(selected_item)["values"]
-    record_id = selected_data[0]
-
-    top = tk.Toplevel(parent)
-    top.title(f"Modify {table_name.capitalize()} Record")
-
-    curr = conn.cursor()
-    curr.execute(f"DESCRIBE {table_name}")
-    column_data = curr.fetchall()
-    fields = [column[0] for column in column_data if column[0] != primary_key_column]
-
-    labels = []
-    entries = []
-
-    for i, field in enumerate(fields):
-        label = ttk.Label(top, text=f"{field.capitalize()}:")
-        label.grid(row=i, column=0, sticky=tk.W, padx=(10, 5), pady=(10, 0))
-
-        entry = ttk.Entry(top)
-        entry.insert(0, selected_data[i + 1])
-        entry.grid(row=i, column=1, sticky=tk.E, padx=(5, 10), pady=(10, 0))
-
-        labels.append(label)
-        entries.append(entry)
-
-    def modify_record():
-        update_fields = {field: entry.get() for field, entry in zip(fields, entries)}
-        update_record(table_name, primary_key_column, record_id, update_fields)
-        refresh_tree(tree, table_name)
-        top.destroy()
-
-    modify_button = ttk.Button(top, text="Modify", command=modify_record)
-    modify_button.grid(row=len(fields), column=0, columnspan=2, pady=(10, 10))
-
-    top.mainloop()
-
+    def refresh_table(self):
+        records = self.get_all_records("repair")
+        self.set_table_data(records)
 
 if __name__ == "__main__":
     conn = connect_db()
     if conn:
-        main_window()
+        app = QApplication(sys.argv)
+        app.setStyle("Fusion")
+
+        dark_palette = app.palette()
+        dark_palette.setColor(QtGui.QPalette.Window, QtGui.QColor(53, 53, 53))
+        dark_palette.setColor(QtGui.QPalette.WindowText, Qt.white)
+        dark_palette.setColor(QtGui.QPalette.Base, QtGui.QColor(25, 25, 25))
+        dark_palette.setColor(QtGui.QPalette.AlternateBase, QtGui.QColor(53, 53, 53))
+        dark_palette.setColor(QtGui.QPalette.ToolTipBase, Qt.white)
+        dark_palette.setColor(QtGui.QPalette.ToolTipText, Qt.white)
+        dark_palette.setColor(QtGui.QPalette.Text, Qt.white)
+        dark_palette.setColor(QtGui.QPalette.Button, QtGui.QColor(53, 53, 53))
+        dark_palette.setColor(QtGui.QPalette.ButtonText, Qt.white)
+        dark_palette.setColor(QtGui.QPalette.BrightText, Qt.red)
+        dark_palette.setColor(QtGui.QPalette.Link, QtGui.QColor(42, 130, 218))
+        dark_palette.setColor(QtGui.QPalette.Highlight, QtGui.QColor(42, 130, 218))
+        dark_palette.setColor(QtGui.QPalette.HighlightedText, Qt.black)
+
+        app.setPalette(dark_palette)
+        app.setStyleSheet("QToolTip { color: #ffffff; background-color: #2a82da; border: 1px solid white; }")
+
+        main_window = AutoRepairDatabase(conn)
+        main_window.show()
+        sys.exit(app.exec_())
         conn.close()
