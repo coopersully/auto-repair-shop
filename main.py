@@ -9,11 +9,11 @@ from mysql.connector import errorcode
 load_dotenv()
 
 # Load environment variables
-USERNAME = os.environ.get("DB_USER")
+USERNAME = os.environ.get("DB_USER", "root")
 PASSWORD = os.environ.get("PASSWORD")
-HOST = os.environ.get("HOST")
+HOST = os.environ.get("HOST", "localhost")
 DATABASE = os.environ.get("DATABASE")
-PORT = os.environ.get("PORT")
+PORT = os.environ.get("PORT", "3306")
 
 
 # Establish a connection to the MySQL server
